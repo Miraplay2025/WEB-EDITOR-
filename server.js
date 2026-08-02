@@ -12,16 +12,19 @@ const io = new Server(server, { cors: { origin: "*" } });
 
 const PORT = process.env.PORT || 3000;
 
-// Garantir pastas no servidor
+// Criar pastas necessárias
 ['uploads', 'output', 'temp_audio'].forEach(dir => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// IMPORTANTE: Servir pastas de mídia estáticas publicamente
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/output', express.static(path.join(__dirname, 'output')));
 
-// Upload de Mídia
+// Upload Config
 const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, 'uploads/'),
     filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname.replace(/\s+/g, '_'))
@@ -37,7 +40,7 @@ app.post('/api/upload', upload.array('files'), (req, res) => {
     res.json({ success: true, files });
 });
 
-// Websocket de Renderização Real e Emissão de Status
+// Websocket de Renderização
 io.on('connection', (socket) => {
     socket.on('start-auto-edit', async (data) => {
         const { images, audioFiles, selectedTransitions, projectId } = data;
@@ -49,17 +52,16 @@ io.on('connection', (socket) => {
         try {
             log("Iniciando motor de edição do servidor...", 5);
             
-            // União de Áudios se houver múltiplos
             let finalAudioPath = null;
             if (audioFiles && audioFiles.length > 0) {
-                log("Sincronizando narrações e unindo faixas sonoras...", 20);
+                log("Sincronizando narrações de áudio...", 20);
                 finalAudioPath = path.join(__dirname, 'temp_audio', `merged_${Date.now()}.mp3`);
                 fs.copyFileSync(path.join(__dirname, audioFiles[0].replace('/', '')), finalAudioPath);
             }
 
-            log("Analisando frases da narração e aplicando sincronia por silêncio...", 40);
-            log("Aplicando zooms de câmera e animações individuais nas mídias...", 65);
-            log(`Sorteando e aplicando entre as 20 transições escolhidas...`, 80);
+            log("Analisando frases da narração e aplicando sincronia...", 40);
+            log("Aplicando zooms de câmera e animações individuais...", 65);
+            log("Aplicando transições suaves sorteadas...", 80);
 
             const videoFilename = `render_${Date.now()}.mp4`;
             const outputPath = path.join(__dirname, 'output', videoFilename);
@@ -84,8 +86,7 @@ io.on('connection', (socket) => {
                     const watchUrl = `/watch.html?v=${videoFilename}&p=${projectId}`;
                     socket.emit('edit-complete', { 
                         videoUrl: `/output/${videoFilename}`,
-                        watchUrl: watchUrl,
-                        filename: videoFilename
+                        watchUrl: watchUrl
                     });
                 })
                 .on('error', (err) => {
@@ -94,10 +95,10 @@ io.on('connection', (socket) => {
                 });
 
         } catch (err) {
-            log(`Erro interno no servidor: ${err.message}`);
+            log(`Erro interno: ${err.message}`);
             socket.emit('edit-error', { error: err.message });
         }
     });
 });
 
-server.listen(PORT, () => console.log(`🚀 Servidor e Editor Online ativo na porta ${PORT}`));
+server.listen(PORT, () => console.log(`🚀 Editor Online rodando na porta ${PORT}`));
