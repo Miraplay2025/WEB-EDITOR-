@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Studio Editor Online Pro</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+
+    <!-- Splash Screen -->
+    <div id="splash-screen">
+        <div class="logo">🎬 StudioEdit Pro</div>
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Dashboard Inicial / Rascunhos -->
+    <div id="dashboard-view" class="view active">
+        <header class="dash-header">
+            <h2>Meus Projetos & Rascunhos</h2>
+            <button id="btn-new-project" class="btn-primary">+ Criar Novo Projeto</button>
+        </header>
+
+        <main class="dash-content">
+            <div id="empty-projects" class="empty-state">
+                <p>Ainda não existe nenhum projeto criado.</p>
+            </div>
+            <div id="projects-grid" class="projects-grid"></div>
+        </main>
+        
+        <input type="file" id="media-input" multiple accept="image/*,video/*" style="display:none">
+    </div>
+
+    <!-- Tela do Editor -->
+    <div id="editor-view" class="view">
+        <header class="editor-header">
+            <button id="btn-back-dash" class="btn-icon">⬅️ Voltar aos Rascunhos</button>
+            <div class="aspect-selector">
+                <label>Proporção:</label>
+                <select id="aspect-ratio">
+                    <option value="9:16">9:16 (TikTok / Reels)</option>
+                    <option value="16:9">16:9 (YouTube / TV)</option>
+                    <option value="1:1">1:1 (Quadrado Feed)</option>
+                    <option value="4:5">4:5 (Instagram Feed)</option>
+                </select>
+            </div>
+            <button id="btn-start-auto-edit" class="btn-success">⚡ Iniciar Edição Automática</button>
+        </header>
+
+        <!-- Preview central -->
+        <section class="preview-area">
+            <div id="preview-container" class="aspect-9-16">
+                <img id="preview-image" src="" alt="Preview">
+            </div>
+        </section>
+
+        <!-- Menu de Opções Dinâmico -->
+        <section class="editor-bottom-panel">
+            <nav class="tool-tabs">
+                <button class="tab-btn active" data-tab="timeline">🎞️ Timeline</button>
+                <button class="tab-btn" data-tab="animations">✨ Animações (10)</button>
+                <button class="tab-btn" data-tab="zoom">🔍 Zoom / Câmera (10)</button>
+                <button class="tab-btn" data-tab="transitions">🔀 Transições Suaves (20)</button>
+                <button class="tab-btn" data-tab="audio">🎙️ Narração / Áudio</button>
+            </nav>
+
+            <!-- Timeline -->
+            <div id="panel-timeline" class="panel-content active">
+                <div class="timeline-container" id="timeline-tracks"></div>
+            </div>
+
+            <!-- Animações -->
+            <div id="panel-animations" class="panel-content">
+                <div class="panel-header">
+                    <span>Selecione 1 Animação para a imagem selecionada:</span>
+                    <button class="btn-close-submenu btn-secondary">✖ Fechar</button>
+                </div>
+                <div class="grid-options" id="anim-options"></div>
+            </div>
+
+            <!-- Zoom / Câmera -->
+            <div id="panel-zoom" class="panel-content">
+                <div class="panel-header">
+                    <span>Selecione 1 Zoom de Câmera para a imagem selecionada:</span>
+                    <button class="btn-close-submenu btn-secondary">✖ Fechar</button>
+                </div>
+                <div class="grid-options" id="zoom-options"></div>
+            </div>
+
+            <!-- Transições (20 Opções) -->
+            <div id="panel-transitions" class="panel-content">
+                <div class="panel-header">
+                    <span>Transições (Obrigatorio ao menos 1)</span>
+                    <button id="btn-toggle-select-trans" class="btn-secondary">Modo Seleção: DESATIVADO</button>
+                    <button class="btn-close-submenu btn-secondary">✖ Fechar</button>
+                </div>
+                <div class="grid-options" id="transition-options"></div>
+            </div>
+
+            <!-- Áudio -->
+            <div id="panel-audio" class="panel-content">
+                <div class="panel-header">
+                    <span>Faixas de Narração</span>
+                    <button id="btn-upload-audio" class="btn-primary">🎙️ Adicionar Áudio</button>
+                    <button class="btn-close-submenu btn-secondary">✖ Fechar</button>
+                </div>
+                <div id="audio-list" class="audio-list"></div>
+                <input type="file" id="audio-input" multiple accept="audio/*" style="display:none">
+            </div>
+        </section>
+    </div>
+
+    <!-- Modal de Logs em Tempo Real -->
+    <div id="modal-processing" class="modal">
+        <div class="modal-body">
+            <h3>Renderizando seu Vídeo...</h3>
+            <div class="circular-progress">
+                <span id="progress-percent">0%</span>
+            </div>
+            <div class="logs-container" id="realtime-logs"></div>
+            <div class="modal-actions">
+                <button id="btn-cancel-edit" class="btn-danger">Cancelar</button>
+                <button id="btn-download-trigger" class="btn-success" style="display:none;">🎬 Assistir / Baixar Vídeo</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
