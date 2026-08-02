@@ -1,45 +1,54 @@
 const socket = io();
 
-// Lista de Projetos/Rascunhos no LocalStorage
 let savedProjects = JSON.parse(localStorage.getItem('studio_projects') || '[]');
 let currentProject = null;
 let selectedImageIndex = 0;
 let isSelectionModeTransitions = false;
 let selectedTransitions = [];
-let generatedWatchUrl = null;
+let isPlaying = false;
+let playInterval = null;
 
 const splash = document.getElementById('splash-screen');
 const mediaInput = document.getElementById('media-input');
 const audioInput = document.getElementById('audio-input');
 const timelineTracks = document.getElementById('timeline-tracks');
 const previewImage = document.getElementById('preview-image');
+const previewWrapper = document.getElementById('preview-wrapper');
+const aspectRatioSelect = document.getElementById('aspect-ratio');
 
-// Remover Splash
+// Splash Screen
 setTimeout(() => {
     splash.style.opacity = '0';
-    setTimeout(() => splash.style.display = 'none', 500);
+    setTimeout(() => splash.style.display = 'none', 400);
     renderDashboard();
-}, 800);
+}, 600);
 
-// NAVEGAÇÃO DAS TABS (Submenus Substituíveis)
-document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.panel-content').forEach(p => p.classList.remove('active'));
-        
-        btn.classList.add('active');
-        const tabName = btn.getAttribute('data-tab');
-        document.getElementById(`panel-${tabName}`).classList.add('active');
-    });
+// NAVEGAÇÃO DE SUBVIEWS (Substituição sem conflito)
+function showSubview(viewId) {
+    document.querySelectorAll('.subview').forEach(v => v.classList.remove('active'));
+    document.getElementById(viewId).classList.add('active');
+}
+
+document.getElementById('open-anim-btn').onclick = () => showSubview('view-animations');
+document.getElementById('open-zoom-btn').onclick = () => showSubview('view-zoom');
+document.getElementById('open-trans-btn').onclick = () => showSubview('view-transitions');
+document.getElementById('open-audio-btn').onclick = () => showSubview('view-audio');
+
+document.querySelectorAll('.btn-back-tool').forEach(btn => {
+    btn.onclick = () => showSubview('view-timeline');
 });
 
-document.querySelectorAll('.btn-close-submenu').forEach(btn => {
-    btn.onclick = () => {
-        document.querySelectorAll('.tab-btn')[0].click(); // Volta para timeline
-    };
-});
+// PROPORÇÃO DINÂMICA
+aspectRatioSelect.onchange = (e) => {
+    const val = e.target.value;
+    previewWrapper.className = '';
+    if (val === '9:16') previewWrapper.className = 'aspect-9-16';
+    else if (val === '16:9') previewWrapper.className = 'aspect-16-9';
+    else if (val === '1:1') previewWrapper.className = 'aspect-1-1';
+    else if (val === '4:5') previewWrapper.className = 'aspect-4-5';
+};
 
-// GERENCIAMENTO DE RASCUNHOS / DASHBOARD
+// DASHBOARD
 function renderDashboard() {
     const grid = document.getElementById('projects-grid');
     const empty = document.getElementById('empty-projects');
@@ -54,11 +63,9 @@ function renderDashboard() {
             card.className = 'project-card';
             card.innerHTML = `
                 <h4>Projeto #${proj.id}</h4>
-                <p>Mídias: ${proj.images.length} | Áudios: ${proj.audios.length}</p>
-                <div class="card-actions">
-                    ${proj.watchUrl ? `<a href="${proj.watchUrl}" class="btn-success" style="text-decoration:none;">▶️ Assistir</a>` : ''}
-                    <button class="btn-danger" onclick="deleteProject(${idx})">Excluir</button>
-                </div>
+                <p style="font-size:0.8rem; color:#aaa; margin:5px 0;">Mídias: ${proj.images.length}</p>
+                ${proj.watchUrl ? `<a href="${proj.watchUrl}" class="btn-success" style="display:inline-block; margin-top:5px; text-decoration:none;">▶️ Assistir</a>` : ''}
+                <button class="btn-danger" style="margin-top:5px;" onclick="deleteProject(${idx})">Excluir</button>
             `;
             grid.appendChild(card);
         });
@@ -106,10 +113,12 @@ function saveCurrentDraft() {
 function openEditor() {
     document.getElementById('dashboard-view').classList.remove('active');
     document.getElementById('editor-view').classList.add('active');
+    selectedImageIndex = 0;
     renderTimeline();
     renderAnimationsOptions();
     renderZoomOptions();
     renderTransitionsOptions();
+    showSubview('view-timeline');
 }
 
 document.getElementById('btn-back-dash').onclick = () => {
@@ -119,7 +128,7 @@ document.getElementById('btn-back-dash').onclick = () => {
     renderDashboard();
 };
 
-// TIMELINE
+// TIMELINE & PREVIEW
 function renderTimeline() {
     timelineTracks.innerHTML = '';
     currentProject.images.forEach((img, idx) => {
@@ -139,6 +148,37 @@ function renderTimeline() {
         previewImage.src = currentProject.images[selectedImageIndex].url;
     }
 }
+
+// CONTROLES DE PLAY/PAUSE SIMULADOS NA TIMELINE
+const btnPlayPause = document.getElementById('btn-play-pause');
+btnPlayPause.onclick = () => {
+    if (isPlaying) {
+        clearInterval(playInterval);
+        isPlaying = false;
+        btnPlayPause.innerText = '▶️';
+    } else {
+        isPlaying = true;
+        btnPlayPause.innerText = '⏸️';
+        playInterval = setInterval(() => {
+            selectedImageIndex = (selectedImageIndex + 1) % currentProject.images.length;
+            renderTimeline();
+        }, 1500);
+    }
+};
+
+document.getElementById('btn-next-frame').onclick = () => {
+    if (selectedImageIndex < currentProject.images.length - 1) {
+        selectedImageIndex++;
+        renderTimeline();
+    }
+};
+
+document.getElementById('btn-prev-frame').onclick = () => {
+    if (selectedImageIndex > 0) {
+        selectedImageIndex--;
+        renderTimeline();
+    }
+};
 
 // 10 ANIMAÇÕES
 function renderAnimationsOptions() {
@@ -178,14 +218,14 @@ function renderZoomOptions() {
     });
 }
 
-// EXACTAMENTE 20 TRANSIÇÕES SUAVES
+// 20 TRANSIÇÕES
 function renderTransitionsOptions() {
     const container = document.getElementById('transition-options');
     container.innerHTML = '';
     const transitionsList = [
-        'Dissolve Suave', 'Fade Cross', 'Push Esquerda', 'Push Direita', 'Slide Cima',
-        'Slide Baixo', 'Blur Suave', 'Zoom Fade', 'Dip Black', 'Dip White',
-        'Corte Suave 1', 'Corte Suave 2', 'Suave Diagonal 1', 'Suave Diagonal 2', 'Perspectiva 1',
+        'Dissolve', 'Fade Cross', 'Push Esq', 'Push Dir', 'Slide Cima',
+        'Slide Baixo', 'Blur', 'Zoom Fade', 'Dip Black', 'Dip White',
+        'Corte 1', 'Corte 2', 'Diagonal 1', 'Diagonal 2', 'Perspectiva 1',
         'Perspectiva 2', 'Glint Leve', 'Soft Wipe 1', 'Soft Wipe 2', 'Mix Gradual'
     ];
 
@@ -200,7 +240,7 @@ function renderTransitionsOptions() {
                 else selectedTransitions.push(name);
                 renderTransitionsOptions();
             } else {
-                alert(`Pré-visualização da ${name} aplicada aos primeiros frames! Ative o "Modo Seleção" para usá-la no vídeo.`);
+                alert(`Testando pré-visualização da ${name}`);
             }
         };
         container.appendChild(div);
@@ -209,11 +249,11 @@ function renderTransitionsOptions() {
 
 document.getElementById('btn-toggle-select-trans').onclick = function() {
     isSelectionModeTransitions = !isSelectionModeTransitions;
-    this.innerText = `Modo Seleção: ${isSelectionModeTransitions ? 'ATIVADO' : 'DESATIVADO'}`;
+    this.innerText = `Modo Seleção: ${isSelectionModeTransitions ? 'ON' : 'OFF'}`;
     this.className = isSelectionModeTransitions ? 'btn-success' : 'btn-secondary';
 };
 
-// UPLOAD DE ÁUDIO
+// ÁUDIO
 document.getElementById('btn-upload-audio').onclick = () => audioInput.click();
 audioInput.onchange = async (e) => {
     const files = Array.from(e.target.files);
@@ -228,14 +268,14 @@ audioInput.onchange = async (e) => {
     if (data.success) {
         data.files.forEach(f => currentProject.audios.push(f.path));
         saveCurrentDraft();
-        alert('Áudio(s) adicionado(s) com sucesso!');
+        alert('Áudio adicionado!');
     }
 };
 
-// AUTOMAÇÃO E SOCKET
+// EDIÇÃO AUTOMÁTICA
 document.getElementById('btn-start-auto-edit').onclick = () => {
     if (selectedTransitions.length === 0) {
-        alert("Atenção: É obrigatório selecionar pelo menos 1 Transição Suave!");
+        alert("Atenção: Selecione pelo menos 1 transição suave!");
         return;
     }
 
