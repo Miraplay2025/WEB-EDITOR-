@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assistir Vídeo Renderizado</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="watch-body">
+
+    <div class="watch-container">
+        <header class="watch-header">
+            <button onclick="window.location.href='/'" class="btn-secondary">⬅️ Voltar ao Editor</button>
+            <h2>Projeto Concluído</h2>
+        </header>
+
+        <main class="player-wrapper">
+            <video id="main-player" controls autoplay class="custom-player"></video>
+        </main>
+
+        <footer class="watch-actions">
+            <div class="export-box">
+                <h3>Opções de Exportação / Download</h3>
+                <div class="options-row">
+                    <div>
+                        <label>Resolução:</label>
+                        <select id="watch-res">
+                            <option value="320p">320p</option>
+                            <option value="480p">480p</option>
+                            <option value="720p">720p</option>
+                            <option value="1080p" selected>1080p (Full HD)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>FPS:</label>
+                        <select id="watch-fps">
+                            <option value="24">24 FPS</option>
+                            <option value="30" selected>30 FPS</option>
+                            <option value="60">60 FPS</option>
+                        </select>
+                    </div>
+                </div>
+                <button id="btn-download-now" class="btn-success btn-large">⬇️ Baixar Vídeo para o Dispositivo</button>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const videoFile = params.get('v');
+        const player = document.getElementById('main-player');
+
+        if (videoFile) {
+            player.src = `/output/${videoFile}`;
+        } else {
+            alert('Vídeo não encontrado!');
+            window.location.href = '/';
+        }
+
+        document.getElementById('btn-download-now').onclick = () => {
+            const a = document.createElement('a');
+            a.href = `/output/${videoFile}`;
+            a.download = videoFile;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        };
+    </script>
+</body>
+</html>
