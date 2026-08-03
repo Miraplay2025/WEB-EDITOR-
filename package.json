@@ -1,7 +1,7 @@
 {
-  "name": "online-video-editor",
-  "version": "1.0.0",
-  "description": "Editor de Vídeo Online com processamento real em FFmpeg e Player Dedicado",
+  "name": "online-video-editor-real",
+  "version": "2.0.0",
+  "description": "Editor de Vídeo Web 100% Real com Whisper e Canvas Engine",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
