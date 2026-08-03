@@ -1,52 +1,42 @@
 const socket = io();
 
-let savedProjects = JSON.parse(localStorage.getItem('studio_projects') || '[]');
+let savedProjects = JSON.parse(localStorage.getItem('studio_projects_v2') || '[]');
 let currentProject = null;
-let selectedImageIndex = 0;
-let isSelectionModeTransitions = false;
-let selectedTransitions = [];
+let selectedIndex = 0;
 let isPlaying = false;
-let playInterval = null;
+let playTimer = null;
+let currentAspect = '9:16';
+let selectedTransitions = [];
 
-const splash = document.getElementById('splash-screen');
 const mediaInput = document.getElementById('media-input');
 const audioInput = document.getElementById('audio-input');
-const timelineTracks = document.getElementById('timeline-tracks');
-const previewImage = document.getElementById('preview-image');
-const previewWrapper = document.getElementById('preview-wrapper');
-const aspectRatioSelect = document.getElementById('aspect-ratio');
+const previewElement = document.getElementById('preview-element');
+const previewStage = document.getElementById('preview-stage');
+const timelineContainer = document.getElementById('timeline-items-container');
+const btnPlayPause = document.getElementById('btn-play-pause');
 
-// Splash Screen
-setTimeout(() => {
-    splash.style.opacity = '0';
-    setTimeout(() => splash.style.display = 'none', 400);
-    renderDashboard();
-}, 600);
-
-// NAVEGAÇÃO DE SUBVIEWS (Substituição sem conflito)
-function showSubview(viewId) {
-    document.querySelectorAll('.subview').forEach(v => v.classList.remove('active'));
-    document.getElementById(viewId).classList.add('active');
+// GERENCIAMENTO DE TELAS/RECURSOS
+function openResourcePanel(panelId) {
+    document.querySelectorAll('.panel-mode').forEach(p => p.classList.remove('active'));
+    document.getElementById(panelId).classList.add('active');
 }
 
-document.getElementById('open-anim-btn').onclick = () => showSubview('view-animations');
-document.getElementById('open-zoom-btn').onclick = () => showSubview('view-zoom');
-document.getElementById('open-trans-btn').onclick = () => showSubview('view-transitions');
-document.getElementById('open-audio-btn').onclick = () => showSubview('view-audio');
-
-document.querySelectorAll('.btn-back-tool').forEach(btn => {
-    btn.onclick = () => showSubview('view-timeline');
+document.querySelectorAll('.btn-back-default').forEach(btn => {
+    btn.onclick = () => {
+        document.querySelectorAll('.panel-mode').forEach(p => p.classList.remove('active'));
+        document.getElementById('default-timeline-panel').classList.add('active');
+    };
 });
 
-// PROPORÇÃO DINÂMICA
-aspectRatioSelect.onchange = (e) => {
-    const val = e.target.value;
-    previewWrapper.className = '';
-    if (val === '9:16') previewWrapper.className = 'aspect-9-16';
-    else if (val === '16:9') previewWrapper.className = 'aspect-16-9';
-    else if (val === '1:1') previewWrapper.className = 'aspect-1-1';
-    else if (val === '4:5') previewWrapper.className = 'aspect-4-5';
-};
+// ALTERAR PROPORÇÃO
+function setAspectRatio(aspect) {
+    currentAspect = aspect;
+    previewStage.className = '';
+    if (aspect === '9:16') previewStage.className = 'aspect-9-16';
+    else if (aspect === '16:9') previewStage.className = 'aspect-16-9';
+    else if (aspect === '1:1') previewStage.className = 'aspect-1-1';
+    else if (aspect === '4:5') previewStage.className = 'aspect-4-5';
+}
 
 // DASHBOARD
 function renderDashboard() {
@@ -63,7 +53,7 @@ function renderDashboard() {
             card.className = 'project-card';
             card.innerHTML = `
                 <h4>Projeto #${proj.id}</h4>
-                <p style="font-size:0.8rem; color:#aaa; margin:5px 0;">Mídias: ${proj.images.length}</p>
+                <p style="font-size:0.8rem; color:#aaa;">Mídias: ${proj.images.length}</p>
                 ${proj.watchUrl ? `<a href="${proj.watchUrl}" class="btn-success" style="display:inline-block; margin-top:5px; text-decoration:none;">▶️ Assistir</a>` : ''}
                 <button class="btn-danger" style="margin-top:5px;" onclick="deleteProject(${idx})">Excluir</button>
             `;
@@ -74,12 +64,13 @@ function renderDashboard() {
 
 function deleteProject(idx) {
     savedProjects.splice(idx, 1);
-    localStorage.setItem('studio_projects', JSON.stringify(savedProjects));
+    localStorage.setItem('studio_projects_v2', JSON.stringify(savedProjects));
     renderDashboard();
 }
 
-// CRIAR NOVO PROJETO
+// NOVO PROJETO E ADICIONAR MAIS MÍDIA
 document.getElementById('btn-new-project').onclick = () => mediaInput.click();
+document.getElementById('btn-add-more-media').onclick = () => mediaInput.click();
 
 mediaInput.onchange = async (e) => {
     const files = Array.from(e.target.files);
@@ -92,14 +83,15 @@ mediaInput.onchange = async (e) => {
     const data = await res.json();
 
     if (data.success) {
-        currentProject = {
-            id: Date.now(),
-            images: data.files.map(f => ({ url: f.path, animation: null, zoom: null })),
-            audios: [],
-            watchUrl: null
-        };
+        const newImages = data.files.map(f => ({ url: f.path, animation: null, zoom: null }));
+        if (!currentProject) {
+            currentProject = { id: Date.now(), images: newImages, audios: [], watchUrl: null };
+            openEditor();
+        } else {
+            currentProject.images.push(...newImages);
+            renderTimeline();
+        }
         saveCurrentDraft();
-        openEditor();
     }
 };
 
@@ -107,18 +99,17 @@ function saveCurrentDraft() {
     const idx = savedProjects.findIndex(p => p.id === currentProject.id);
     if (idx >= 0) savedProjects[idx] = currentProject;
     else savedProjects.push(currentProject);
-    localStorage.setItem('studio_projects', JSON.stringify(savedProjects));
+    localStorage.setItem('studio_projects_v2', JSON.stringify(savedProjects));
 }
 
 function openEditor() {
     document.getElementById('dashboard-view').classList.remove('active');
     document.getElementById('editor-view').classList.add('active');
-    selectedImageIndex = 0;
+    selectedIndex = 0;
     renderTimeline();
     renderAnimationsOptions();
     renderZoomOptions();
     renderTransitionsOptions();
-    showSubview('view-timeline');
 }
 
 document.getElementById('btn-back-dash').onclick = () => {
@@ -128,97 +119,121 @@ document.getElementById('btn-back-dash').onclick = () => {
     renderDashboard();
 };
 
-// TIMELINE & PREVIEW
+// LINHA DO TEMPO & PREVIEW EM TEMPO REAL
 function renderTimeline() {
-    timelineTracks.innerHTML = '';
+    timelineContainer.innerHTML = '';
     currentProject.images.forEach((img, idx) => {
-        const item = document.createElement('div');
-        item.className = `timeline-item ${idx === selectedImageIndex ? 'active' : ''}`;
-        item.innerHTML = `<img src="${img.url}">`;
-        item.onclick = () => {
-            selectedImageIndex = idx;
+        const card = document.createElement('div');
+        card.className = `timeline-card ${idx === selectedIndex ? 'active' : ''}`;
+        card.innerHTML = `
+            <img src="${img.url}">
+            <button class="btn-del-media" onclick="removeMedia(event, ${idx})">✖</button>
+        `;
+        card.onclick = () => {
+            selectedIndex = idx;
             renderTimeline();
-            renderAnimationsOptions();
-            renderZoomOptions();
-            previewImage.src = img.url;
+            updatePreviewEffects();
         };
-        timelineTracks.appendChild(item);
+        timelineContainer.appendChild(card);
     });
+
     if (currentProject.images.length > 0) {
-        previewImage.src = currentProject.images[selectedImageIndex].url;
+        updatePreviewEffects();
     }
 }
 
-// CONTROLES DE PLAY/PAUSE SIMULADOS NA TIMELINE
-const btnPlayPause = document.getElementById('btn-play-pause');
+function removeMedia(e, idx) {
+    e.stopPropagation();
+    currentProject.images.splice(idx, 1);
+    if (selectedIndex >= currentProject.images.length) selectedIndex = Math.max(0, currentProject.images.length - 1);
+    renderTimeline();
+    saveCurrentDraft();
+}
+
+// APLICAÇÃO DE EFEITOS REAIS VISÍVEIS NO NAVEGADOR
+function updatePreviewEffects() {
+    const currentMedia = currentProject.images[selectedIndex];
+    if (!currentMedia) return;
+
+    previewElement.src = currentMedia.url;
+    previewElement.className = ''; // Reseta classes
+
+    // Aplica Animações Ativas em Tempo Real
+    if (currentMedia.animation) {
+        if (currentMedia.animation === 'Swing') previewElement.classList.add('anim-swing');
+        if (currentMedia.animation === 'Pulse') previewElement.classList.add('anim-pulse');
+        if (currentMedia.animation === 'Bounce') previewElement.classList.add('anim-bounce');
+    }
+
+    // Aplica Zooms Ativos em Tempo Real
+    if (currentMedia.zoom) {
+        if (currentMedia.zoom === 'Zoom In') previewElement.classList.add('zoom-in');
+        if (currentMedia.zoom === 'Zoom Out') previewElement.classList.add('zoom-out');
+        if (currentMedia.zoom === 'Esquerda') previewElement.classList.add('zoom-left');
+        if (currentMedia.zoom === 'Direita') previewElement.classList.add('zoom-right');
+    }
+}
+
+// CONTROLE DE PLAY/PAUSE REAL NA LINHA DO TEMPO
 btnPlayPause.onclick = () => {
     if (isPlaying) {
-        clearInterval(playInterval);
+        clearInterval(playTimer);
         isPlaying = false;
-        btnPlayPause.innerText = '▶️';
+        btnPlayPause.innerText = '▶️ Play';
     } else {
         isPlaying = true;
-        btnPlayPause.innerText = '⏸️';
-        playInterval = setInterval(() => {
-            selectedImageIndex = (selectedImageIndex + 1) % currentProject.images.length;
+        btnPlayPause.innerText = '⏸️ Pausa';
+        playTimer = setInterval(() => {
+            if (currentProject.images.length === 0) return;
+            selectedIndex = (selectedIndex + 1) % currentProject.images.length;
             renderTimeline();
         }, 1500);
     }
 };
 
-document.getElementById('btn-next-frame').onclick = () => {
-    if (selectedImageIndex < currentProject.images.length - 1) {
-        selectedImageIndex++;
-        renderTimeline();
-    }
-};
-
-document.getElementById('btn-prev-frame').onclick = () => {
-    if (selectedImageIndex > 0) {
-        selectedImageIndex--;
-        renderTimeline();
-    }
-};
-
-// 10 ANIMAÇÕES
+// ANIMAÇÕES (Ativar / Removendo ao Re-clicar)
 function renderAnimationsOptions() {
-    const anims = ['Swing1', 'Swing2', 'Shrink1', 'Shrink2', 'Yo-yo1', 'Yo-yo2', 'FadeIn', 'FadeOut', 'Bounce', 'Pulse'];
+    const anims = ['Swing', 'Pulse', 'Bounce'];
     const container = document.getElementById('anim-options');
     container.innerHTML = '';
     anims.forEach(anim => {
-        const div = document.createElement('div');
-        const isSel = currentProject.images[selectedImageIndex]?.animation === anim;
-        div.className = `option-item ${isSel ? 'selected' : ''}`;
-        div.innerText = anim;
-        div.onclick = () => {
-            currentProject.images[selectedImageIndex].animation = isSel ? null : anim;
+        const btn = document.createElement('button');
+        const isSel = currentProject.images[selectedIndex]?.animation === anim;
+        btn.className = `opt-btn ${isSel ? 'active-effect' : ''}`;
+        btn.innerText = anim;
+        btn.onclick = () => {
+            // Se clicar na mesma, remove o efeito!
+            currentProject.images[selectedIndex].animation = isSel ? null : anim;
             renderAnimationsOptions();
+            updatePreviewEffects();
             saveCurrentDraft();
         };
-        container.appendChild(div);
+        container.appendChild(btn);
     });
 }
 
-// 10 ZOOMS
+// ZOOMS (Ativar / Removendo ao Re-clicar)
 function renderZoomOptions() {
-    const zooms = ['Zoom In', 'Zoom Out', 'Left', 'Right', 'Up', 'Down', 'Top-Left', 'Top-Right', 'Bottom-Left', 'Bottom-Right'];
+    const zooms = ['Zoom In', 'Zoom Out', 'Esquerda', 'Direita'];
     const container = document.getElementById('zoom-options');
     container.innerHTML = '';
     zooms.forEach(zoom => {
-        const div = document.createElement('div');
-        const isSel = currentProject.images[selectedImageIndex]?.zoom === zoom;
-        div.className = `option-item ${isSel ? 'selected' : ''}`;
-        div.innerText = zoom;
-        div.onclick = () => {
-            currentProject.images[selectedImageIndex].zoom = isSel ? null : zoom;
+        const btn = document.createElement('button');
+        const isSel = currentProject.images[selectedIndex]?.zoom === zoom;
+        btn.className = `opt-btn ${isSel ? 'active-effect' : ''}`;
+        btn.innerText = zoom;
+        btn.onclick = () => {
+            // Se clicar na mesma, remove o efeito!
+            currentProject.images[selectedIndex].zoom = isSel ? null : zoom;
             renderZoomOptions();
+            updatePreviewEffects();
             saveCurrentDraft();
         };
-        container.appendChild(div);
+        container.appendChild(btn);
     });
 }
 
-// 20 TRANSIÇÕES
+// TRANSIÇÕES (20 OPÇÕES COM PRÉ-VISUALIZAÇÃO AUTOMÁTICA)
 function renderTransitionsOptions() {
     const container = document.getElementById('transition-options');
     container.innerHTML = '';
@@ -230,30 +245,26 @@ function renderTransitionsOptions() {
     ];
 
     transitionsList.forEach(name => {
-        const div = document.createElement('div');
+        const btn = document.createElement('button');
         const isSel = selectedTransitions.includes(name);
-        div.className = `option-item ${isSel ? 'selected' : ''}`;
-        div.innerText = name;
-        div.onclick = () => {
-            if (isSelectionModeTransitions) {
-                if (isSel) selectedTransitions = selectedTransitions.filter(t => t !== name);
-                else selectedTransitions.push(name);
-                renderTransitionsOptions();
-            } else {
-                alert(`Testando pré-visualização da ${name}`);
-            }
+        btn.className = `opt-btn ${isSel ? 'active-effect' : ''}`;
+        btn.innerText = name;
+        btn.onclick = () => {
+            // Pré-visualização instantânea na imagem
+            previewElement.classList.remove('trans-preview');
+            void previewElement.offsetWidth; // Trigger reflow
+            previewElement.classList.add('trans-preview');
+
+            if (isSel) selectedTransitions = selectedTransitions.filter(t => t !== name);
+            else selectedTransitions.push(name);
+            
+            renderTransitionsOptions();
         };
-        container.appendChild(div);
+        container.appendChild(btn);
     });
 }
 
-document.getElementById('btn-toggle-select-trans').onclick = function() {
-    isSelectionModeTransitions = !isSelectionModeTransitions;
-    this.innerText = `Modo Seleção: ${isSelectionModeTransitions ? 'ON' : 'OFF'}`;
-    this.className = isSelectionModeTransitions ? 'btn-success' : 'btn-secondary';
-};
-
-// ÁUDIO
+// UPLOAD DE ÁUDIO
 document.getElementById('btn-upload-audio').onclick = () => audioInput.click();
 audioInput.onchange = async (e) => {
     const files = Array.from(e.target.files);
@@ -268,17 +279,12 @@ audioInput.onchange = async (e) => {
     if (data.success) {
         data.files.forEach(f => currentProject.audios.push(f.path));
         saveCurrentDraft();
-        alert('Áudio adicionado!');
+        alert('Áudio adicionado com sucesso!');
     }
 };
 
-// EDIÇÃO AUTOMÁTICA
+// EDIÇÃO AUTOMÁTICA REAL VIA WEBSOCKET
 document.getElementById('btn-start-auto-edit').onclick = () => {
-    if (selectedTransitions.length === 0) {
-        alert("Atenção: Selecione pelo menos 1 transição suave!");
-        return;
-    }
-
     document.getElementById('modal-processing').classList.add('active');
     document.getElementById('realtime-logs').innerHTML = '';
     document.getElementById('btn-download-trigger').style.display = 'none';
@@ -287,7 +293,8 @@ document.getElementById('btn-start-auto-edit').onclick = () => {
         images: currentProject.images,
         audioFiles: currentProject.audios,
         selectedTransitions,
-        projectId: currentProject.id
+        projectId: currentProject.id,
+        aspectRatio: currentAspect
     });
 };
 
@@ -307,10 +314,7 @@ socket.on('edit-progress', (data) => {
 socket.on('edit-complete', (data) => {
     currentProject.watchUrl = data.watchUrl;
     saveCurrentDraft();
-    
     const trigger = document.getElementById('btn-download-trigger');
-    trigger.style.display = 'inline-block';
-    trigger.onclick = () => {
-        window.location.href = data.watchUrl;
-    };
+    trigger.style.display = 'block';
+    trigger.onclick = () => window.location.href = data.watchUrl;
 });
