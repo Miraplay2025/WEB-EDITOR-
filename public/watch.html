@@ -6,43 +6,16 @@
     <title>Assistir Vídeo Renderizado</title>
     <link rel="stylesheet" href="style.css">
 </head>
-<body class="watch-body">
+<body style="background:#000; display:flex; flex-direction:column; justify-content:center; align-items:center; height:100vh;">
 
-    <div class="watch-container">
-        <header class="watch-header">
-            <button onclick="window.location.href='/'" class="btn-secondary">⬅️ Voltar ao Editor</button>
-            <h2>Projeto Concluído</h2>
-        </header>
-
-        <main class="player-wrapper">
-            <video id="main-player" controls autoplay class="custom-player"></video>
-        </main>
-
-        <footer class="watch-actions">
-            <div class="export-box">
-                <h3>Opções de Exportação / Download</h3>
-                <div class="options-row">
-                    <div>
-                        <label>Resolução:</label>
-                        <select id="watch-res">
-                            <option value="320p">320p</option>
-                            <option value="480p">480p</option>
-                            <option value="720p">720p</option>
-                            <option value="1080p" selected>1080p (Full HD)</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label>FPS:</label>
-                        <select id="watch-fps">
-                            <option value="24">24 FPS</option>
-                            <option value="30" selected>30 FPS</option>
-                            <option value="60">60 FPS</option>
-                        </select>
-                    </div>
-                </div>
-                <button id="btn-download-now" class="btn-success btn-large">⬇️ Baixar Vídeo para o Dispositivo</button>
-            </div>
-        </footer>
+    <div style="width:100%; max-width:600px; padding:20px; text-align:center;">
+        <h2 style="margin-bottom:15px; color:#00e676;">Seu Vídeo Está Pronto!</h2>
+        <video id="main-player" controls autoplay style="width:100%; max-height:60vh; border-radius:8px; border:1px solid #333;"></video>
+        
+        <div style="margin-top:20px; display:flex; gap:10px;">
+            <button onclick="window.location.href='/'" class="btn-secondary" style="flex:1;">⬅️ Voltar ao Editor</button>
+            <button id="btn-download-now" class="btn-success" style="flex:1;">⬇️ Baixar Vídeo</button>
+        </div>
     </div>
 
     <script>
